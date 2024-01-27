@@ -1,215 +1,455 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const gridDisplay = document.querySelector('.grid')
-    const scoreDisplay = document.getElementById('score')
+let game = null;
+let bestScore = 0;
+const scoreDiv = document.getElementById('score');
+const bestScoreDiv = document.getElementById('bestScore');
+const addDiv = document.getElementById('add');
+const endDiv = document.getElementById('end');
+const size = 4;
+let nextId = 1;
+let score = 0;
 
-    let squares = []
-    let score = 0
+function initGame() {
+  game = Array(size * size).fill(null); // 4 x 4 grid, represented as an array
+  initBestScore();
+}
 
-    function createBoard() {
-        for (let i = 0; i < 16; i++) {
-            square = document.createElement('div')
-            square.innerHTML = 0
-            gridDisplay.appendChild(square)
-            squares.push(square)
-        }
-        generateTwo()
-        generateTwo()
+function initBestScore() {
+  bestScore = localStorage.getItem('bestScore') || 0;
+  bestScoreDiv.innerHTML = bestScore;
+}
+
+function updateDOM(before, after) {
+  const newElements = getNewElementsDOM(before, after);
+  const existingElements = getExistingElementsDOM(before, after);
+  const mergedTiles = getMergedTiles(after);
+  removeElements(mergedTiles);
+  drawGame(newElements, true);
+  drawGame(existingElements);
+}
+
+function removeElements(mergedTiles) {
+  for (let tile of mergedTiles) {
+    for (let id of tile.mergedIds) {
+      const currentElm = document.getElementById(id);
+      positionTile(tile, currentElm);
+      currentElm.classList.add('tile--shrink');
+      setTimeout(() => {
+        currentElm.remove();
+      }, 100);
     }
-    createBoard()
+  }
+}
 
-    function generateTwo() {
-        let random = Math.floor(Math.random() * squares.length)
-        if (squares[random].innerHTML == 0) {
-            squares[random].innerHTML = 2
-            checkLose()
-        }
-        else generateTwo()
+function getMergedTiles(after) {
+  return after.filter(tile => tile && tile.mergedIds);
+}
+
+function getNewElementsDOM(before, after) {
+  const beforeIds = before.filter(tile => tile).map(tile => tile.id);
+  const newElements = after.filter(tile => {
+    return tile && beforeIds.indexOf(tile.id) === -1;
+  });
+  return newElements;
+}
+
+function getExistingElementsDOM(before, after) {
+  const beforeIds = before.filter(tile => tile).map(tile => tile.id);
+  const existingElements = after.filter(tile => {
+    return tile && beforeIds.indexOf(tile.id) !== -1;
+  });
+  return existingElements;
+}
+
+function drawBackground() {
+  const tileContainer = document.getElementById('tile-container');
+  tileContainer.innerHTML = '';
+  for (let i = 0; i < game.length; i++) {
+    const tile = game[i];
+    const tileDiv = document.createElement('div');
+    const x = i % size;
+    const y = Math.floor(i / size);
+    tileDiv.style.top = `${y * 100}px`;
+    tileDiv.style.left = `${x * 100}px`;
+
+    tileDiv.classList.add("background");
+    tileContainer.appendChild(tileDiv);
+  }
+}
+
+function positionTile(tile, elm) {
+  const x = tile.index % size;
+  const y = Math.floor(tile.index / size);
+  elm.style.top = `${y * 100}px`;
+  elm.style.left = `${x * 100}px`;
+}
+
+function drawGame(tiles, isNew) {
+  const tileContainer = document.getElementById('tile-container');
+  for (let i = 0; i < tiles.length; i++) {
+    const tile = tiles[i];
+    if (tile) {
+      if (isNew) {
+        const tileDiv = document.createElement('div');
+        positionTile(tile, tileDiv);
+        tileDiv.classList.add('tile', `tile--${tile.value}`);
+        tileDiv.id = tile.id;
+        setTimeout(() => {
+          tileDiv.classList.add("tile--pop");
+        }, tile.mergedIds ? 1 : 150);
+        tileDiv.innerHTML = `<p>${tile.value}</p>`;
+        tileContainer.appendChild(tileDiv);
+      } else {
+        const currentElement = document.getElementById(tile.id);
+        positionTile(tile, currentElement);
+      }
+    }
+  }
+}
+
+function gameOver() {
+  if (game.filter(number => number === null).length === 0) {
+    const sameNeighbors = game.find((tile, i) => {
+      const isRightSame = game[i + 1] && (i + 1) % 4 !== 0 ? tile.value === game[i + 1].value : false;
+      const isDownSame = game[i + 4] ? tile.value === game[i + 4].value : false;
+      if (isRightSame || isDownSame) {
+        return true;
+      }
+      return false;
+    });
+    return !sameNeighbors;
+  }
+}
+
+function generateNewNumber() {
+  // 0.9 probability of 2, 0.1 probability of 4
+  const p = Math.random() * 100;
+  return p <= 90 ? 2 : 4;
+}
+
+function addRandomNumber() {
+  // Adds either a 2 or a 4 to an empty position in the game array
+  const emptyCells = game.map((_, index) => index).
+  filter(index => game[index] === null);
+  if (emptyCells.length === 0) {return;}
+  const newPos = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+  const newObj = {
+    id: nextId++,
+    index: newPos,
+    value: generateNewNumber() };
+
+  game.splice(newPos, 1, newObj);
+}
+
+function getIndexForPoint(x, y) {
+  return y * size + x;
+}
+
+function reflectGrid(grid) {
+  let reflectedGame = Array(size * size).fill(0);
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      const index1 = getIndexForPoint(col, row);
+      const index2 = getIndexForPoint(size - col - 1, row);
+      reflectedGame[index1] = grid[index2];
+    }
+  }
+  return reflectedGame;
+}
+
+function rotateLeft90Deg(grid) {
+  let rotatedGame = Array(size * size).fill(0);
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      const index1 = getIndexForPoint(col, row);
+      const index2 = getIndexForPoint(size - 1 - row, col);
+      rotatedGame[index1] = grid[index2];
+    }
+  }
+  return rotatedGame;
+}
+
+function rotateRight90Deg(grid) {
+  let rotatedGame = Array(size * size).fill(0);
+  for (let row = 0; row < size; row++) {
+    for (let col = 0; col < size; col++) {
+      const index1 = getIndexForPoint(col, row);
+      const index2 = getIndexForPoint(row, size - 1 - col);
+      rotatedGame[index1] = grid[index2];
+    }
+  }
+  return rotatedGame;
+}
+
+/*
+For any cell whose neighbor to the right is empty, move that cell
+to the right. For any cell whose neighbor to the right is equal
+to the same value, combine the values together (e.g. 2+2 = 4)
+*/
+function shiftGameRight(gameGrid) {
+  // reflect game grid
+  let reflectedGame = reflectGrid(gameGrid);
+  // shift left
+  reflectedGame = shiftGameLeft(reflectedGame);
+  // reflect back
+  return reflectGrid(reflectedGame);
+}
+
+function shiftGameLeft(gameGrid) {
+  let newGameState = [];
+  let totalAdd = 0;
+  // for rows
+  for (let i = 0; i < size; i++) {
+    // for columns
+    const firstPos = 4 * i;
+    const lastPos = size + 4 * i;
+    const currentRow = gameGrid.slice(firstPos, lastPos);
+    const filteredRow = currentRow.filter(row => row);
+    for (let row of filteredRow) {
+      delete row.mergedIds;
     }
 
-    function moveRight() {
-        for (let i = 0; i < 16; i++) {
-            if (i % 4 == 0) {
-                let totalOne = parseInt(squares[i].innerHTML)
-                let totalTwo = parseInt(squares[i + 1].innerHTML)
-                let totalThree = parseInt(squares[i + 2].innerHTML)
-                let totalFour = parseInt(squares[i + 3].innerHTML)
-                let row = [totalOne, totalTwo, totalThree, totalFour]
+    for (let j = 0; j < filteredRow.length - 1; j++) {
+      if (filteredRow[j].value === filteredRow[j + 1].value) {
+        const sum = filteredRow[j].value * 2;
+        filteredRow[j] = {
+          id: nextId++,
+          mergedIds: [filteredRow[j].id, filteredRow[j + 1].id],
+          value: sum };
 
-
-                let filteredRow = row.filter(x => x != 0)
-
-                let missing = 4 - filteredRow.length
-                let zeros = Array(missing).fill(0)
-
-                let newRow = zeros.concat(filteredRow)
-
-
-
-                squares[i].innerHTML = newRow[0]
-                squares[i + 1].innerHTML = newRow[1]
-                squares[i + 2].innerHTML = newRow[2]
-                squares[i + 3].innerHTML = newRow[3]
-            }
-        }
+        filteredRow.splice(j + 1, 1);
+        score += sum;
+        totalAdd += sum;
+      }
     }
+    while (filteredRow.length < size) {
+      filteredRow.push(null);
+    };
+    newGameState = [...newGameState, ...filteredRow];
+  }
 
-
-    function moveLeft() {
-        for (let i = 0; i < 16; i++) {
-            if (i % 4 == 0) {
-                let totalOne = parseInt(squares[i].innerHTML)
-                let totalTwo = parseInt(squares[i + 1].innerHTML)
-                let totalThree = parseInt(squares[i + 2].innerHTML)
-                let totalFour = parseInt(squares[i + 3].innerHTML)
-                let row = [totalOne, totalTwo, totalThree, totalFour]
-
-
-                let filteredRow = row.filter(x => x != 0)
-                let missing = 4 - filteredRow.length
-                let zeros = Array(missing).fill(0)
-                let newRow = filteredRow.concat(zeros)
-
-
-
-                squares[i].innerHTML = newRow[0]
-                squares[i + 1].innerHTML = newRow[1]
-                squares[i + 2].innerHTML = newRow[2]
-                squares[i + 3].innerHTML = newRow[3]
-            }
-        }
+  if (totalAdd > 0) {
+    scoreDiv.innerHTML = score;
+    addDiv.innerHTML = `+${totalAdd}`;
+    addDiv.classList.add('active');
+    setTimeout(function () {
+      addDiv.classList.remove("active");
+    }, 800);
+    if (score > bestScore) {
+      localStorage.setItem('bestScore', score);
+      initBestScore();
     }
+  }
+  return newGameState;
+}
 
-    function sumRow() {
-        for (let i = 0; i < 15; i++) {
-            if (squares[i].innerHTML == squares[i + 1].innerHTML) {
-                let combineNum = parseInt(squares[i].innerHTML) + parseInt(squares[i + 1].innerHTML)
-                squares[i].innerHTML = combineNum
-                squares[i + 1].innerHTML = 0
-                score += combineNum
-                scoreDisplay.innerHTML = score
-            }
-        }
+function shiftGameUp(gameGrid) {
+  let rotatedGame = rotateLeft90Deg(gameGrid);
+  rotatedGame = shiftGameLeft(rotatedGame);
+  return rotateRight90Deg(rotatedGame);
+}
+
+function shiftGameDown(gameGrid) {
+  let rotatedGame = rotateRight90Deg(gameGrid);
+  rotatedGame = shiftGameLeft(rotatedGame);
+  return rotateLeft90Deg(rotatedGame);
+}
+
+const buttons = document.querySelectorAll(".js-restart-btn");
+const length = buttons.length;
+for (let i = 0; i < length; i++) {
+  if (document.addEventListener) {
+    buttons[i].addEventListener("click", function () {
+      newGameStart();
+    });
+  } else {
+    buttons[i].attachEvent("onclick", function () {
+      newGameStart();
+    });
+  };
+};
+
+document.addEventListener("keydown", handleKeypress);
+document.addEventListener('touchstart', handleTouchStart, false);
+document.addEventListener('touchmove', handleTouchMove, false);
+
+let xDown = null;
+let yDown = null;
+
+function handleTouchStart(evt) {
+  xDown = evt.touches[0].clientX;
+  yDown = evt.touches[0].clientY;
+};
+
+function handleTouchMove(evt) {
+  const prevGame = [...game];
+  if (!xDown || !yDown) {
+    return;
+  }
+  const xUp = evt.touches[0].clientX;
+  const yUp = evt.touches[0].clientY;
+
+  const xDiff = xDown - xUp;
+  const yDiff = yDown - yUp;
+
+  if (Math.abs(xDiff) > Math.abs(yDiff)) {
+    if (xDiff > 0) {
+      game = shiftGameLeft(game);
+    } else {
+      game = shiftGameRight(game);
     }
-
-    checkWin()
-
-    function moveDown() {
-
-        for (let i = 0; i < 4; i++) {
-            let totalOne = parseInt(squares[i].innerHTML)
-            let totalTwo = parseInt(squares[i + 4].innerHTML)
-            let totalThree = parseInt(squares[i + 4 * 2].innerHTML)
-            let totalFour = parseInt(squares[i + 4 * 3].innerHTML)
-            let column = [totalOne, totalTwo, totalThree, totalFour]
-
-            let filteredColumn = column.filter(x => x != 0)
-            let missing = 4 - filteredColumn.length
-            let zeros = Array(missing).fill(0)
-            let newColumn = zeros.concat(filteredColumn)
-
-            squares[i].innerHTML = newColumn[0]
-            squares[i + 4].innerHTML = newColumn[1]
-            squares[i + 4 * 2].innerHTML = newColumn[2]
-            squares[i + 4 * 3].innerHTML = newColumn[3]
-        }
+  } else {
+    if (yDiff > 0) {
+      game = shiftGameUp(game);
+    } else {
+      game = shiftGameDown(game);
     }
+  }
+  game = game.map((tile, index) => {
+    if (tile) {
+      return {
+        ...tile,
+        index };
 
-    function moveUp() {
-
-        for (let i = 0; i < 4; i++) {
-            let totalOne = parseInt(squares[i].innerHTML)
-            let totalTwo = parseInt(squares[i + 4].innerHTML)
-            let totalThree = parseInt(squares[i + 4 * 2].innerHTML)
-            let totalFour = parseInt(squares[i + 4 * 3].innerHTML)
-            let column = [totalOne, totalTwo, totalThree, totalFour]
-
-            let filteredColumn = column.filter(x => x != 0)
-            let missing = 4 - filteredColumn.length
-            let zeros = Array(missing).fill(0)
-            let newColumn = filteredColumn.concat(zeros)
-
-            squares[i].innerHTML = newColumn[0]
-            squares[i + 4].innerHTML = newColumn[1]
-            squares[i + 4 * 2].innerHTML = newColumn[2]
-            squares[i + 4 * 3].innerHTML = newColumn[3]
-        }
+    } else {
+      return null;
     }
+  });
+  if (_.isEqual(prevGame, game)) return;
+  addRandomNumber();
+  updateDOM(prevGame, game);
+  if (gameOver()) {
+    setTimeout(() => {
+      endDiv.classList.add('active');
+    }, 800);
+    return;
+  }
+  xDown = null;
+  yDown = null;
+};
 
-    function sumColumn() {
-        for (let i = 0; i < 12; i++) {
-            if (squares[i].innerHTML == squares[i + 4].innerHTML) {
-                let combineNum = parseInt(squares[i].innerHTML) + parseInt(squares[i + 4].innerHTML)
-                squares[i].innerHTML = combineNum
-                squares[i + 4].innerHTML = 0
-                score += combineNum
-                scoreDisplay.innerHTML = score
-            }
-        }
+function handleKeypress(evt) {
+  var modifiers = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+  var whichKey = event.which;
 
-        checkWin()
+  const prevGame = [...game];
+
+  if (!modifiers) {
+    event.preventDefault();
+    switch (whichKey) {
+      case 37:
+        game = shiftGameLeft(game);
+        break;
+      case 38:
+        game = shiftGameUp(game);
+        break;
+      case 39:
+        game = shiftGameRight(game);
+        break;
+      case 40:
+        game = shiftGameDown(game);
+        break;}
+
+    game = game.map((tile, index) => {
+      if (tile) {
+        return {
+          ...tile,
+          index };
+
+      } else {
+        return null;
+      }
+    });
+    if (_.isEqual(prevGame, game)) return;
+    addRandomNumber();
+    updateDOM(prevGame, game);
+    if (gameOver()) {
+      setTimeout(() => {
+        endDiv.classList.add('active');
+      }, 800);
+      return;
     }
+  }
+}
 
-    function control(event) {
-        if (event.keyCode === 39) {
-            keyRight()
-        } else if (event.keyCode === 37) {
-            keyLeft()
-        } else if (event.keyCode === 38) {
-            keyUp()
-        } else if (event.keyCode === 40) {
-            keyDown()
-        }
+document.addEventListener("touchstart", handleTouchStart, false);
+document.addEventListener("touchmove", handleTouchMove, false);
 
+let touchStartX = 0;
+let touchStartY = 0;
+
+function handleTouchStart(event) {
+  touchStartX = event.touches[0].clientX;
+  touchStartY = event.touches[0].clientY;
+}
+
+function handleTouchMove(event) {
+  if (!touchStartX || !touchStartY) {
+    return;
+  }
+
+  const touchEndX = event.touches[0].clientX;
+  const touchEndY = event.touches[0].clientY;
+
+  const deltaX = touchStartX - touchEndX;
+  const deltaY = touchStartY - touchEndY;
+
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    if (deltaX > 0) {
+      // Swipe left
+      game = shiftGameLeft(game);
+    } else {
+      // Swipe right
+      game = shiftGameRight(game);
     }
-    document.addEventListener('keyup', control)
-
-    function keyRight() {
-        moveRight() 
-        sumRow() 
-        moveRight() 
-        generateTwo()
+  } else {
+    if (deltaY > 0) {
+      // Swipe up
+      game = shiftGameUp(game);
+    } else {
+      // Swipe down
+      game = shiftGameDown(game);
     }
+  }
 
-    function keyLeft() {
-        moveLeft()
-        sumRow()
-        moveLeft()
-        generateTwo()
+  const prevGame = [...game];
+  game = game.map((tile, index) => {
+    if (tile) {
+      return {
+        ...tile,
+        index,
+      };
+    } else {
+      return null;
     }
+  });
 
-    function keyDown() {
-        moveDown()
-        sumColumn()
-        moveDown()
-        generateTwo()
-    }
+  if (_.isEqual(prevGame, game)) return;
 
-    function keyUp() {
-        moveUp()
-        sumColumn()
-        moveUp()
-        generateTwo()
-    }
+  addRandomNumber();
+  updateDOM(prevGame, game);
 
-    function checkWin() {
-        for (let i = 0; i < 16; i++) {
-            if (squares[i].innerHTML == 2048) {
-                alert('Congratulations!! Refresh the page to play again.')
-                document.removeEventListener('keyup', control)
-            }
-        }
-    }
+  if (gameOver()) {
+    setTimeout(() => {
+      endDiv.classList.add('active');
+    }, 800);
+    return;
+  }
 
-    function checkLose() {
-        let numZeros = 0
-        for (let i = 0; i < 16; i++) {
-            if (squares[i].innerHTML == 0) {
-                numZeros++
-            }
-        }
-        if (numZeros === 0) {
-            alert('Game Over!! Refresh the page to play again.')
-            document.removeEventListener('keyup', control)
-        }
-    }
-})
+  touchStartX = 0;
+  touchStartY = 0;
+}
+
+function newGameStart() {
+  document.getElementById('tile-container').innerHTML = '';
+  endDiv.classList.remove('active');
+  score = 0;
+  scoreDiv.innerHTML = score;
+  initGame();
+  drawBackground();
+  const previousGame = [...game];
+  addRandomNumber();
+  addRandomNumber();
+  updateDOM(previousGame, game);
+}
+
+newGameStart();
