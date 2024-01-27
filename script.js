@@ -278,7 +278,7 @@ let yDown = null;
 function handleTouchStart(evt) {
   xDown = evt.touches[0].clientX;
   yDown = evt.touches[0].clientY;
-};
+}
 
 function handleTouchMove(evt) {
   const prevGame = [...game];
@@ -308,8 +308,8 @@ function handleTouchMove(evt) {
     if (tile) {
       return {
         ...tile,
-        index };
-
+        index,
+      };
     } else {
       return null;
     }
@@ -325,7 +325,7 @@ function handleTouchMove(evt) {
   }
   xDown = null;
   yDown = null;
-};
+}
 
 function handleKeypress(evt) {
   var modifiers = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
@@ -347,14 +347,15 @@ function handleKeypress(evt) {
         break;
       case 40:
         game = shiftGameDown(game);
-        break;}
+        break;
+    }
 
     game = game.map((tile, index) => {
       if (tile) {
         return {
           ...tile,
-          index };
-
+          index,
+        };
       } else {
         return null;
       }
@@ -369,74 +370,6 @@ function handleKeypress(evt) {
       return;
     }
   }
-}
-
-document.addEventListener("touchstart", handleTouchStart, false);
-document.addEventListener("touchmove", handleTouchMove, false);
-
-let touchStartX = 0;
-let touchStartY = 0;
-
-function handleTouchStart(event) {
-  touchStartX = event.touches[0].clientX;
-  touchStartY = event.touches[0].clientY;
-}
-
-function handleTouchMove(event) {
-  if (!touchStartX || !touchStartY) {
-    return;
-  }
-
-  const touchEndX = event.touches[0].clientX;
-  const touchEndY = event.touches[0].clientY;
-
-  const deltaX = touchStartX - touchEndX;
-  const deltaY = touchStartY - touchEndY;
-
-  if (Math.abs(deltaX) > Math.abs(deltaY)) {
-    if (deltaX > 0) {
-      // Swipe left
-      game = shiftGameLeft(game);
-    } else {
-      // Swipe right
-      game = shiftGameRight(game);
-    }
-  } else {
-    if (deltaY > 0) {
-      // Swipe up
-      game = shiftGameUp(game);
-    } else {
-      // Swipe down
-      game = shiftGameDown(game);
-    }
-  }
-
-  const prevGame = [...game];
-  game = game.map((tile, index) => {
-    if (tile) {
-      return {
-        ...tile,
-        index,
-      };
-    } else {
-      return null;
-    }
-  });
-
-  if (_.isEqual(prevGame, game)) return;
-
-  addRandomNumber();
-  updateDOM(prevGame, game);
-
-  if (gameOver()) {
-    setTimeout(() => {
-      endDiv.classList.add('active');
-    }, 800);
-    return;
-  }
-
-  touchStartX = 0;
-  touchStartY = 0;
 }
 
 function newGameStart() {
